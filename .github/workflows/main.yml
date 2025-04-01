@@ -1,0 +1,43 @@
+name: Ενημέρωση Επιπέδου Επικινδυνότητας Κορινθίας
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Εκτελείται καθημερινά στις 6 π.μ. UTC
+  workflow_dispatch:  # Δυνατότητα χειροκίνητης εκτέλεσης
+
+jobs:
+  update-risk-level:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Εγκατάσταση απαιτούμενων πακέτων
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr imagemagick
+
+      - name: Λήψη και Επεξεργασία Χάρτη Επικινδυνότητας
+        run: |
+          # Ορισμός URL χάρτη
+          MAP_URL="https://www.civilprotection.gr/sites/default/gscp_uploads/megafires/megafires.pdf"
+
+          # Λήψη του PDF
+          wget -O fire_risk_map.pdf $MAP_URL
+
+          # Μετατροπή του PDF σε εικόνα (πρώτη σελίδα)
+          convert -density 300 fire_risk_map.pdf[0] -quality 100 fire_risk_map.jpg
+
+          # Κοπή της περιοχής της Κορινθίας (προσαρμόστε τις συντεταγμένες ανάλογα)
+          convert fire_risk_map.jpg -crop 500x300+1000+1500 korinthia.jpg
+
+          # Αναγνώριση κειμένου με OCR
+          RISK_LEVEL=$(tesseract korinthia.jpg stdout -l ell+eng | grep -oE '[1-5]')
+
+          # Αν δεν αναγνωριστεί αριθμός, ορισμός σε 0
+          if [[ -z "$RISK_LEVEL" ]]; then
+            RISK_LEVEL=0
+          fi
+
+          # Ενημέρωση του korinthia.txt
+          echo $RISK_LEVEL 
